@@ -1,5 +1,6 @@
 import json
 import os
+import tempfile
 
 DATA_FILE = "data.json"
 
@@ -8,12 +9,23 @@ def load():
     if not os.path.exists(DATA_FILE):
         return []
     with open(DATA_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+        try:
+            return json.load(f)
+        except json.JSONDecodeError:
+            print(f"ERROR :: {DATA_FILE} 파일이 손상되어 있어 빈 목록으로 시작합니다.")
+            return []
 
 
 def save(items):
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(items, f, ensure_ascii=False, indent=2)
+    directory = os.path.dirname(os.path.abspath(DATA_FILE))
+    fd, tmp_path = tempfile.mkstemp(dir=directory)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(items, f, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, DATA_FILE)
+    except BaseException:
+        os.remove(tmp_path)
+        raise
 
 
 def next_id(items):
@@ -26,8 +38,20 @@ def find(items, item_id):
     return next((item for item in items if item["id"] == item_id), None)
 
 
+def _prompt_item_id(prompt):
+    try:
+        return int(input(prompt).strip())
+    except ValueError:
+        print("ERROR :: ID는 숫자여야 합니다.")
+        return None
+
+
 def create(items):
     name = input("이름: ").strip()
+    if not name:
+        print("ERROR :: 이름은 비워둘 수 없습니다.")
+        return
+
     value = input("값: ").strip()
     item = {"id": next_id(items), "name": name, "value": value}
     items.append(item)
@@ -54,10 +78,8 @@ def read_one(items):
 
 
 def update(items):
-    try:
-        item_id = int(input("수정할 ID: ").strip())
-    except ValueError:
-        print("ERROR :: ID는 숫자여야 합니다.")
+    item_id = _prompt_item_id("수정할 ID: ")
+    if item_id is None:
         return
 
     item = find(items, item_id)
@@ -78,10 +100,8 @@ def update(items):
 
 
 def delete(items):
-    try:
-        item_id = int(input("삭제할 ID: ").strip())
-    except ValueError:
-        print("ERROR :: ID는 숫자여야 합니다.")
+    item_id = _prompt_item_id("삭제할 ID: ")
+    if item_id is None:
         return
 
     item = find(items, item_id)
